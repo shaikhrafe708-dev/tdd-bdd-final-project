@@ -27,7 +27,7 @@ import os
 import logging
 import unittest
 from decimal import Decimal
-from service.models import Product, Category, db
+from service.models import Product, Category, db, DataValidationError
 from service import app
 from tests.factories import ProductFactory
 
@@ -194,3 +194,44 @@ class TestProductModel(unittest.TestCase):
         self.assertEqual(found.count(), count)
         for product in found:
             self.assertEqual(product.category, category)
+
+    def test_find_by_price(self):
+        """It should Find Products by Price"""
+        products = ProductFactory.create_batch(10)
+        for product in products:
+            product.create()
+        price = products[0].price
+        count = len([product for product in products if product.price == price])
+        found = Product.find_by_price(price)
+        self.assertEqual(found.count(), count)
+        for product in found:
+            self.assertEqual(product.price, price)
+
+    def test_find_by_price_string(self):
+        """It should Find a Product by Price given as a string"""
+        product = ProductFactory()
+        product.create()
+        found = Product.find_by_price(f' "{product.price}" ')
+        self.assertEqual(found.count(), 1)
+
+    def test_update_with_no_id(self):
+        """It should not Update a Product with no id"""
+        product = ProductFactory()
+        product.id = None
+        self.assertRaises(DataValidationError, product.update)
+
+    def test_deserialize_bad_available(self):
+        """It should not Deserialize a bad available attribute"""
+        data = ProductFactory().serialize()
+        data["available"] = "true"
+        self.assertRaises(DataValidationError, Product().deserialize, data)
+
+    def test_deserialize_bad_category(self):
+        """It should not Deserialize a bad category attribute"""
+        data = ProductFactory().serialize()
+        data["category"] = "INVALID"
+        self.assertRaises(DataValidationError, Product().deserialize, data)
+
+    def test_deserialize_bad_data(self):
+        """It should not Deserialize bad data"""
+        self.assertRaises(DataValidationError, Product().deserialize, None)
